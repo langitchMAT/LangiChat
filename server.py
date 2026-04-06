@@ -243,6 +243,7 @@ async def handle_ws(request):
                 payload = json.dumps({
                     'type': 'message',
                     'chat': chat,
+                    'sender_id': user['id'],      # add this
                     'receiver_id': receiver_id,
                     'group_id': group_id,
                     'name': user['username'],
@@ -309,7 +310,7 @@ async def handle_ws(request):
                 await ws.send_str(json.dumps({'type': 'group_created', 'id': group_id, 'name': name}))
 
             # admin — get all users
-            elif data.get('type') == 'admin_get_users' and user['is_admin']:
+            elif data.get('type') == 'admin_get_users' and user['is_admin'] == 1:
                 async with request.app['db'].acquire() as conn:
                     async with conn.cursor() as cur:
                         await cur.execute('SELECT id, username, is_admin, created_at FROM users')

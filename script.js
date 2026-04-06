@@ -1,8 +1,9 @@
 let ws;
 let currentUser;
+let currentUserId;
 let currentChat = { type: "global" };
 let selectedGroupMembers = [];
-let unread = {}; // chat_key -> count
+let unread = {};
 
 function chatKey(chat) {
     if (chat.type === "global") return "global";
@@ -29,8 +30,6 @@ function renderUnread(key) {
     el.style.display = count > 0 ? "inline-block" : "none";
 }
 
-// ── auth ──────────────────────────────────────────────
-
 async function login() {
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
@@ -41,14 +40,11 @@ async function login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
     });
-
     const data = await res.json();
-
     if (!res.ok) {
         document.getElementById("auth-error").textContent = data.error;
         return;
     }
-
     localStorage.setItem("token", data.token);
     localStorage.setItem("username", data.username);
     localStorage.setItem("is_admin", data.is_admin);
@@ -65,14 +61,11 @@ async function register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
     });
-
     const data = await res.json();
-
     if (!res.ok) {
         document.getElementById("auth-error").textContent = data.error;
         return;
     }
-
     await login();
 }
 
@@ -81,8 +74,6 @@ function logout() {
     location.reload();
 }
 
-// ── app start ─────────────────────────────────────────
-
 function startApp(token, username, is_admin) {
     currentUser = username;
 
@@ -90,7 +81,7 @@ function startApp(token, username, is_admin) {
     document.getElementById("app").classList.remove("hidden");
     document.getElementById("current-username").textContent = username;
 
-    if (is_admin == 1 || is_admin === true) {
+    if (parseInt(is_admin) === 1) {
         document.getElementById("admin-link").classList.remove("hidden");
     }
 
@@ -119,15 +110,22 @@ function startApp(token, username, is_admin) {
                 );
             });
         } else if (data.type === "message") {
-            const key =
-                data.chat === "global"
-                    ? "global"
-                    : data.chat === "dm"
-                      ? `dm-${data.name === currentUser ? data.receiver_id : data.sender_id}`
-                      : `group-${data.group_id}`;
+            // figure out which chat this belongs to
+            let key;
+            if (data.chat === "global") {
+                key = "global";
+            } else if (data.chat === "dm") {
+                // other person's id — if i sent it receiver_id is the other, if i received it sender_id is the other
+                const otherId =
+                    data.name === currentUser
+                        ? data.receiver_id
+                        : data.sender_id;
+                key = `dm-${otherId}`;
+            } else {
+                key = `group-${data.group_id}`;
+            }
 
             const currentKey = chatKey(currentChat);
-
             if (key === currentKey) {
                 addMessage(data.name, data.text, data.name === currentUser);
             } else {
@@ -159,8 +157,6 @@ function startApp(token, username, is_admin) {
         setTimeout(() => startApp(token, username, is_admin), 2000);
     };
 }
-
-// ── chat ──────────────────────────────────────────────
 
 function openGlobal() {
     currentChat = { type: "global" };
@@ -213,11 +209,9 @@ function setActive(id) {
 function send() {
     const input = document.getElementById("input");
     if (!input.value.trim() || !ws) return;
-
     const msg = { type: "message", text: input.value, chat: currentChat.type };
     if (currentChat.type === "dm") msg.receiver_id = currentChat.user_id;
     if (currentChat.type === "group") msg.group_id = currentChat.group_id;
-
     ws.send(JSON.stringify(msg));
     input.value = "";
 }
@@ -238,21 +232,19 @@ function addMessage(name, text, isYou, timestamp) {
     const textDiv = document.createElement("div");
     textDiv.textContent = text;
 
+    const timeDiv = document.createElement("div");
+    timeDiv.classList.add("timestamp");
+    timeDiv.textContent = timestamp
+        ? new Date(timestamp).toLocaleTimeString()
+        : new Date().toLocaleTimeString(); // always show time
+
     div.appendChild(nameDiv);
     div.appendChild(textDiv);
-
-    if (timestamp) {
-        const timeDiv = document.createElement("div");
-        timeDiv.classList.add("timestamp");
-        timeDiv.textContent = new Date(timestamp).toLocaleTimeString();
-        div.appendChild(timeDiv);
-    }
+    div.appendChild(timeDiv);
 
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
 }
-
-// ── sidebar ───────────────────────────────────────────
 
 function makeBadge(key) {
     const badge = document.createElement("span");
@@ -269,10 +261,8 @@ function renderDmList(users) {
         const div = document.createElement("div");
         div.className = "sidebar-item";
         div.id = `item-dm-${u.id}`;
-
         const label = document.createElement("span");
         label.textContent = `@ ${u.username}`;
-
         div.appendChild(label);
         div.appendChild(makeBadge(`dm-${u.id}`));
         div.onclick = () => openDm(u.id, u.username);
@@ -288,10 +278,8 @@ function renderGroupList(groups) {
         const div = document.createElement("div");
         div.className = "sidebar-item";
         div.id = `item-group-${g.id}`;
-
         const label = document.createElement("span");
         label.textContent = `# ${g.name}`;
-
         div.appendChild(label);
         div.appendChild(makeBadge(`group-${g.id}`));
         div.onclick = () => openGroup(g.id, g.name);
@@ -299,8 +287,6 @@ function renderGroupList(groups) {
         renderUnread(`group-${g.id}`);
     });
 }
-
-// ── modals ────────────────────────────────────────────
 
 function showUsers() {
     document.getElementById("users-modal").classList.remove("hidden");
@@ -337,7 +323,6 @@ function renderGroupUsersModal(users) {
     users.forEach((u) => {
         const div = document.createElement("div");
         div.className = "modal-item";
-
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.onchange = () => {
@@ -349,7 +334,6 @@ function renderGroupUsersModal(users) {
                 );
             }
         };
-
         div.appendChild(checkbox);
         div.appendChild(document.createTextNode(u.username));
         list.appendChild(div);
@@ -367,8 +351,6 @@ function createGroup() {
         }),
     );
 }
-
-// ── admin ─────────────────────────────────────────────
 
 function adminTab(tab) {
     document
@@ -424,8 +406,6 @@ function renderAdminLogs(logs) {
 function adminDeleteUser(userId) {
     ws.send(JSON.stringify({ type: "admin_delete_user", user_id: userId }));
 }
-
-// ── auto login ────────────────────────────────────────
 
 const token = localStorage.getItem("token");
 const username = localStorage.getItem("username");
