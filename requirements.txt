@@ -3,3 +3,4 @@ aiomysql
 bcrypt
 pyjwt
 cryptography
+aiohttp_remotes
