@@ -2,6 +2,32 @@ let ws;
 let currentUser;
 let currentChat = { type: "global" };
 let selectedGroupMembers = [];
+let unread = {}; // chat_key -> count
+
+function chatKey(chat) {
+    if (chat.type === "global") return "global";
+    if (chat.type === "dm") return `dm-${chat.user_id}`;
+    if (chat.type === "group") return `group-${chat.group_id}`;
+}
+
+function incrementUnread(key) {
+    if (!unread[key]) unread[key] = 0;
+    unread[key]++;
+    renderUnread(key);
+}
+
+function clearUnread(key) {
+    unread[key] = 0;
+    renderUnread(key);
+}
+
+function renderUnread(key) {
+    const el = document.getElementById(`badge-${key}`);
+    if (!el) return;
+    const count = unread[key] || 0;
+    el.textContent = count > 0 ? count : "";
+    el.style.display = count > 0 ? "inline-block" : "none";
+}
 
 // ── auth ──────────────────────────────────────────────
 
@@ -79,9 +105,9 @@ function startApp(token, username, is_admin) {
         const data = JSON.parse(event.data);
 
         if (data.type === "auth_ok") {
-            ws.send(JSON.stringify({ type: "get_global" }));
             ws.send(JSON.stringify({ type: "get_groups" }));
             ws.send(JSON.stringify({ type: "get_users" }));
+            openGlobal();
         } else if (data.type === "history") {
             document.getElementById("messages").innerHTML = "";
             data.messages.forEach((msg) => {
@@ -93,18 +119,19 @@ function startApp(token, username, is_admin) {
                 );
             });
         } else if (data.type === "message") {
-            const c = currentChat;
-            if (
-                (data.chat === "global" && c.type === "global") ||
-                (data.chat === "dm" &&
-                    c.type === "dm" &&
-                    (data.name === currentUser ||
-                        data.receiver_id === c.user_id)) ||
-                (data.chat === "group" &&
-                    c.type === "group" &&
-                    data.group_id === c.group_id)
-            ) {
+            const key =
+                data.chat === "global"
+                    ? "global"
+                    : data.chat === "dm"
+                      ? `dm-${data.name === currentUser ? data.receiver_id : data.sender_id}`
+                      : `group-${data.group_id}`;
+
+            const currentKey = chatKey(currentChat);
+
+            if (key === currentKey) {
                 addMessage(data.name, data.text, data.name === currentUser);
+            } else {
+                incrementUnread(key);
             }
         } else if (data.type === "users") {
             renderDmList(data.users);
@@ -131,9 +158,6 @@ function startApp(token, username, is_admin) {
     ws.onclose = () => {
         setTimeout(() => startApp(token, username, is_admin), 2000);
     };
-
-    // open global by default
-    openGlobal();
 }
 
 // ── chat ──────────────────────────────────────────────
@@ -145,7 +169,8 @@ function openGlobal() {
     document.getElementById("chat-header").textContent = "# global";
     document.getElementById("messages").innerHTML = "";
     ws.send(JSON.stringify({ type: "get_global" }));
-    setActive(null);
+    setActive("item-global");
+    clearUnread("global");
 }
 
 function openDm(userId, username) {
@@ -155,7 +180,8 @@ function openDm(userId, username) {
     document.getElementById("chat-header").textContent = `@ ${username}`;
     document.getElementById("messages").innerHTML = "";
     ws.send(JSON.stringify({ type: "get_dm", user_id: userId }));
-    setActive(`dm-${userId}`);
+    setActive(`item-dm-${userId}`);
+    clearUnread(`dm-${userId}`);
 }
 
 function openGroup(groupId, name) {
@@ -165,24 +191,23 @@ function openGroup(groupId, name) {
     document.getElementById("chat-header").textContent = `# ${name}`;
     document.getElementById("messages").innerHTML = "";
     ws.send(JSON.stringify({ type: "get_group", group_id: groupId }));
-    setActive(`group-${groupId}`);
+    setActive(`item-group-${groupId}`);
+    clearUnread(`group-${groupId}`);
 }
 
 function openAdmin() {
     document.getElementById("chat-area").classList.add("hidden");
     document.getElementById("admin-area").classList.remove("hidden");
     adminTab("users");
-    setActive("admin");
+    setActive("item-admin");
 }
 
 function setActive(id) {
     document
         .querySelectorAll(".sidebar-item")
         .forEach((el) => el.classList.remove("active"));
-    if (id) {
-        const el = document.getElementById(`item-${id}`);
-        if (el) el.classList.add("active");
-    }
+    const el = document.getElementById(id);
+    if (el) el.classList.add("active");
 }
 
 function send() {
@@ -229,6 +254,14 @@ function addMessage(name, text, isYou, timestamp) {
 
 // ── sidebar ───────────────────────────────────────────
 
+function makeBadge(key) {
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.id = `badge-${key}`;
+    badge.style.display = "none";
+    return badge;
+}
+
 function renderDmList(users) {
     const list = document.getElementById("dm-list");
     list.innerHTML = "";
@@ -236,9 +269,15 @@ function renderDmList(users) {
         const div = document.createElement("div");
         div.className = "sidebar-item";
         div.id = `item-dm-${u.id}`;
-        div.textContent = `@ ${u.username}`;
+
+        const label = document.createElement("span");
+        label.textContent = `@ ${u.username}`;
+
+        div.appendChild(label);
+        div.appendChild(makeBadge(`dm-${u.id}`));
         div.onclick = () => openDm(u.id, u.username);
         list.appendChild(div);
+        renderUnread(`dm-${u.id}`);
     });
 }
 
@@ -249,9 +288,15 @@ function renderGroupList(groups) {
         const div = document.createElement("div");
         div.className = "sidebar-item";
         div.id = `item-group-${g.id}`;
-        div.textContent = `# ${g.name}`;
+
+        const label = document.createElement("span");
+        label.textContent = `# ${g.name}`;
+
+        div.appendChild(label);
+        div.appendChild(makeBadge(`group-${g.id}`));
         div.onclick = () => openGroup(g.id, g.name);
         list.appendChild(div);
+        renderUnread(`group-${g.id}`);
     });
 }
 
@@ -333,7 +378,7 @@ function adminTab(tab) {
     document.getElementById("admin-logs").classList.add("hidden");
 
     if (tab === "users") {
-        document.querySelector(".admin-tab").classList.add("active");
+        document.querySelectorAll(".admin-tab")[0].classList.add("active");
         document.getElementById("admin-users").classList.remove("hidden");
         ws.send(JSON.stringify({ type: "admin_get_users" }));
     } else {
