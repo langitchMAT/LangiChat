@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+    <head>
+        <title>messenger</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <!-- auth -->
+        <div id="auth">
+            <div id="auth-box">
+                <h1>messenger</h1>
+                <input id="username" type="text" placeholder="username" />
+                <input id="password" type="password" placeholder="password" />
+                <div id="auth-buttons">
+                    <button onclick="login()">login</button>
+                    <button onclick="register()">register</button>
+                </div>
+                <div id="auth-error"></div>
+            </div>
+        </div>
+
+        <!-- app -->
+        <div id="app" class="hidden">
+            <!-- sidebar -->
+            <div id="sidebar">
+                <div id="sidebar-header">
+                    <span id="current-username"></span>
+                    <button id="logout-btn" onclick="logout()">logout</button>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-label">global</div>
+                    <div class="sidebar-item active" onclick="openGlobal()">
+                        # global
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-label">
+                        direct messages
+                        <button class="small-btn" onclick="showUsers()">
+                            +
+                        </button>
+                    </div>
+                    <div id="dm-list"></div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-label">
+                        groups
+                        <button class="small-btn" onclick="showCreateGroup()">
+                            +
+                        </button>
+                    </div>
+                    <div id="group-list"></div>
+                </div>
+
+                <div id="admin-link" class="hidden">
+                    <div class="sidebar-item" onclick="openAdmin()">
+                        ⚙ admin
+                    </div>
+                </div>
+            </div>
+
+            <!-- main -->
+            <div id="main">
+                <!-- chat -->
+                <div id="chat-area">
+                    <div id="chat-header"></div>
+                    <div id="messages"></div>
+                    <input
+                        id="input"
+                        type="text"
+                        placeholder="type a message..."
+                    />
+                </div>
+
+                <!-- users modal -->
+                <div id="users-modal" class="modal hidden">
+                    <div class="modal-box">
+                        <div class="modal-header">
+                            <span>select user</span>
+                            <button onclick="hideModal('users-modal')">
+                                ✕
+                            </button>
+                        </div>
+                        <div id="users-list"></div>
+                    </div>
+                </div>
+
+                <!-- create group modal -->
+                <div id="group-modal" class="modal hidden">
+                    <div class="modal-box">
+                        <div class="modal-header">
+                            <span>create group</span>
+                            <button onclick="hideModal('group-modal')">
+                                ✕
+                            </button>
+                        </div>
+                        <input
+                            id="group-name"
+                            type="text"
+                            placeholder="group name"
+                        />
+                        <div id="group-users-list"></div>
+                        <button onclick="createGroup()">create</button>
+                    </div>
+                </div>
+
+                <!-- admin panel -->
+                <div id="admin-area" class="hidden">
+                    <div id="admin-tabs">
+                        <button
+                            class="admin-tab active"
+                            onclick="adminTab('users')"
+                        >
+                            users
+                        </button>
+                        <button class="admin-tab" onclick="adminTab('logs')">
+                            logs
+                        </button>
+                    </div>
+                    <div id="admin-users"></div>
+                    <div id="admin-logs" class="hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <script src="script.js"></script>
+    </body>
+</html>
